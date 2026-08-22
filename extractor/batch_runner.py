@@ -20,6 +20,11 @@ OnContainerStart = Callable[[str, int], None]
 OnFileProgress = Callable[[], None]
 # (message) -> None, called for container-level failures that don't abort the batch
 OnContainerError = Callable[[str], None]
+# (internal_path, message) -> None, called when a single file fails to extract
+OnFileError = Callable[[str, str], None]
+# (container_name, {"matched", "extracted", "skipped", "errors"}) -> None, called after a
+# container has been fully walked, with counts summed across every search applied to it
+OnContainerFinished = Callable[[str, dict], None]
 
 
 def discover_containers(source_dir: Path) -> List[Path]:
@@ -47,6 +52,8 @@ def process_container(
     on_container_start: Optional[OnContainerStart] = None,
     on_file_progress: Optional[OnFileProgress] = None,
     on_container_error: Optional[OnContainerError] = None,
+    on_file_error: Optional[OnFileError] = None,
+    on_container_finished: Optional[OnContainerFinished] = None,
 ) -> None:
     """Walk one container exactly once and check every applicable search against each entry."""
     try:
@@ -55,6 +62,7 @@ def process_container(
         log_writer.log(container_path.name, "", None, 0, f"error: {exc}", "")
         return
 
+    container_stats = {"matched": 0, "extracted": 0, "skipped": 0, "errors": 0}
     try:
         with adapter:
             entries = list(adapter.walk())
@@ -66,9 +74,11 @@ def process_container(
                     if not search.matches(internal_path, filename):
                         continue
                     stats[search.name]["matched"] += 1
+                    container_stats["matched"] += 1
                     existing = file_handler.is_duplicate(search.output_subdir, filename, size)
                     if existing is not None:
                         stats[search.name]["skipped"] += 1
+                        container_stats["skipped"] += 1
                         log_writer.log(
                             container_path.name, internal_path, str(existing), size, "skipped", search.name
                         )
@@ -82,16 +92,22 @@ def process_container(
                             adapter.extract_file(internal_path, out_f)
                         file_handler.mark_written(search.output_subdir, filename, size, dest)
                         stats[search.name]["extracted"] += 1
+                        container_stats["extracted"] += 1
                         log_writer.log(
                             container_path.name, internal_path, str(dest), size, "extracted", search.name
                         )
                     except Exception as exc:
                         stats[search.name]["errors"] += 1
+                        container_stats["errors"] += 1
                         log_writer.log(
                             container_path.name, internal_path, None, size, f"error: {exc}", search.name
                         )
+                        if on_file_error is not None:
+                            on_file_error(internal_path, str(exc))
                 if on_file_progress is not None:
                     on_file_progress()
+        if on_container_finished is not None:
+            on_container_finished(container_path.name, container_stats)
     except Exception as exc:
         # Corrupted or unsupported container content must not abort the batch.
         if on_container_error is not None:
@@ -105,6 +121,8 @@ def run_batch(
     on_file_progress: Optional[OnFileProgress] = None,
     on_container_error: Optional[OnContainerError] = None,
     on_source_missing: Optional[Callable[[Path], None]] = None,
+    on_file_error: Optional[OnFileError] = None,
+    on_container_finished: Optional[OnContainerFinished] = None,
 ) -> dict:
     """Run every search in `config` across all discovered containers and return stats.
 
@@ -142,6 +160,8 @@ def run_batch(
                     on_container_start=on_container_start,
                     on_file_progress=on_file_progress,
                     on_container_error=on_container_error,
+                    on_file_error=on_file_error,
+                    on_container_finished=on_container_finished,
                 )
 
     return dict(stats)

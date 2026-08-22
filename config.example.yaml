@@ -15,11 +15,11 @@ searches:
     match:
       - path_contains: "RADIO"
 
-  - name: "Todo de un disco especifico usando otro como referencia de estructura"
+  - name: "Paginas web"
     output_subdir: "web"
     match:
       - path_contains: "WEB"
-        extensions: [.html, .htm, .css, .js]
+        extensions: [.html, .htm, .css, .js, .jpg, .jpeg, .png, .gif, .bmp]
 
   - name: "Imagenes promocionales"
     output_subdir: "images"

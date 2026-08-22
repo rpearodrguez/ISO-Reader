@@ -6,6 +6,7 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -36,6 +37,7 @@ from .direct_extraction_worker import DirectExtractionWorker
 from .disc_tree import collect_checked, install_checkbox_propagation, populate_tree
 from .extraction_worker import ExtractionWorker
 from .regex_builder import build_regex
+from .search_dialog import SearchDialog
 
 _OUTPUT_MODES = ["flat", "by_iso", "by_type", "by_search"]
 
@@ -317,9 +319,18 @@ class MainWindow(QMainWindow):
         self.searches_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.searches_table)
 
+        buttons_row = QHBoxLayout()
+        add_search_btn = QPushButton("Agregar búsqueda")
+        add_search_btn.clicked.connect(self._on_add_batch_search)
+        buttons_row.addWidget(add_search_btn)
+        edit_search_btn = QPushButton("Editar búsqueda seleccionada")
+        edit_search_btn.clicked.connect(self._on_edit_batch_search)
+        buttons_row.addWidget(edit_search_btn)
         remove_btn = QPushButton("Quitar búsqueda seleccionada")
         remove_btn.clicked.connect(self._on_remove_search)
-        layout.addWidget(remove_btn)
+        buttons_row.addWidget(remove_btn)
+        buttons_row.addStretch(1)
+        layout.addLayout(buttons_row)
 
         run_row = QHBoxLayout()
         run_btn = QPushButton("Ejecutar extracción")
@@ -384,6 +395,64 @@ class MainWindow(QMainWindow):
         config_state.remove_search(self.config, row)
         self._refresh_searches_table()
 
+    def _on_add_batch_search(self) -> None:
+        dialog = SearchDialog(self, title="Agregar búsqueda")
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        name, subdir, extensions, path_contains, filename_contains = dialog.values()
+        if not name or not subdir:
+            QMessageBox.information(self, "Faltan datos", "Completa nombre y carpeta de salida.")
+            return
+        if not extensions and not path_contains and not filename_contains:
+            QMessageBox.information(
+                self,
+                "Falta la regla",
+                "Completa al menos extensiones, ruta contiene o nombre contiene.",
+            )
+            return
+        config_state.add_search(self.config, name, subdir, extensions, path_contains, filename_contains)
+        self._refresh_searches_table()
+
+    def _on_edit_batch_search(self) -> None:
+        row = self.searches_table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Nada seleccionado", "Selecciona una búsqueda de la tabla primero.")
+            return
+        search = self.config["searches"][row]
+        if not config_state.is_simple_search(search):
+            QMessageBox.information(
+                self,
+                "No editable",
+                "Esta búsqueda tiene una regla que este editor simple no puede representar "
+                "(regex, múltiples reglas OR, o source_dir propio). Editá el config.yaml a mano "
+                "o quitala y volvela a crear.",
+            )
+            return
+        rule = search.get("match", [{}])[0]
+        dialog = SearchDialog(self, title="Editar búsqueda")
+        dialog.set_values(
+            search.get("name", ""),
+            search.get("output_subdir", ""),
+            rule.get("extensions") or [],
+            rule.get("path_contains", ""),
+            rule.get("filename_contains", ""),
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        name, subdir, extensions, path_contains, filename_contains = dialog.values()
+        if not name or not subdir:
+            QMessageBox.information(self, "Faltan datos", "Completa nombre y carpeta de salida.")
+            return
+        if not extensions and not path_contains and not filename_contains:
+            QMessageBox.information(
+                self,
+                "Falta la regla",
+                "Completa al menos extensiones, ruta contiene o nombre contiene.",
+            )
+            return
+        config_state.update_search(self.config, row, name, subdir, extensions, path_contains, filename_contains)
+        self._refresh_searches_table()
+
     def _sync_config_from_form(self) -> None:
         self.config["global"]["source_dir"] = self.source_dir_edit.text().strip()
         self.config["global"]["output_dir"] = self.output_dir_edit.text().strip()
@@ -445,6 +514,8 @@ class MainWindow(QMainWindow):
         self.worker.file_progress.connect(self._on_worker_file_progress)
         self.worker.container_error.connect(lambda msg: self.log_console.appendPlainText(f"ERROR: {msg}"))
         self.worker.source_missing.connect(lambda path: self.log_console.appendPlainText(f"Carpeta no encontrada: {path}"))
+        self.worker.file_error.connect(self._on_worker_file_error)
+        self.worker.container_finished.connect(self._on_worker_container_finished)
         self.worker.finished_ok.connect(self._on_worker_finished)
         self.worker.failed.connect(lambda msg: QMessageBox.critical(self, "Error en la extracción", msg))
         self.worker.start()
@@ -457,6 +528,15 @@ class MainWindow(QMainWindow):
 
     def _on_worker_file_progress(self) -> None:
         self.progress_bar.setValue(self.progress_bar.value() + 1)
+
+    def _on_worker_file_error(self, internal_path: str, message: str) -> None:
+        self.log_console.appendPlainText(f"  ERROR extrayendo {internal_path}: {message}")
+
+    def _on_worker_container_finished(self, name: str, counts: dict) -> None:
+        self.log_console.appendPlainText(
+            f"  {name}: {counts['matched']} coincidencias, {counts['extracted']} extraídos, "
+            f"{counts['skipped']} saltados, {counts['errors']} errores"
+        )
 
     def _on_worker_finished(self, stats: dict) -> None:
         self.log_console.appendPlainText("Extracción terminada.")

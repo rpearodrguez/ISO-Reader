@@ -42,6 +42,68 @@ def add_regex_search(config: dict, name: str, output_subdir: str, path_regex: st
     )
 
 
+def _build_simple_rule(extensions: List[str], path_contains: str, filename_contains: str) -> dict:
+    rule: dict = {}
+    if extensions:
+        rule["extensions"] = extensions
+    if path_contains:
+        rule["path_contains"] = path_contains
+    if filename_contains:
+        rule["filename_contains"] = filename_contains
+    return rule
+
+
+def add_search(
+    config: dict,
+    name: str,
+    output_subdir: str,
+    extensions: List[str],
+    path_contains: str,
+    filename_contains: str,
+) -> None:
+    """Append a search with a single AND-combined match rule built from whichever of
+    extensions/path_contains/filename_contains were actually filled in."""
+    config.setdefault("searches", []).append(
+        {
+            "name": name,
+            "output_subdir": output_subdir,
+            "match": [_build_simple_rule(extensions, path_contains, filename_contains)],
+        }
+    )
+
+
+def update_search(
+    config: dict,
+    index: int,
+    name: str,
+    output_subdir: str,
+    extensions: List[str],
+    path_contains: str,
+    filename_contains: str,
+) -> None:
+    """Overwrite the search at index with a single AND-combined match rule, same shape as
+    add_search. Only meant for searches is_simple_search() already accepted."""
+    config["searches"][index] = {
+        "name": name,
+        "output_subdir": output_subdir,
+        "match": [_build_simple_rule(extensions, path_contains, filename_contains)],
+    }
+
+
+def is_simple_search(search: dict) -> bool:
+    """True if `search` fits the single-rule extensions/path_contains/filename_contains
+    editor -- exactly one match rule with no path_regex and no per-search source_dir
+    override. Searches built from the explorer tab's regex flow, or hand-edited YAML with
+    multiple OR'd rules, don't fit and must be edited as YAML instead."""
+    if search.get("source_dir"):
+        return False
+    match = search.get("match", [])
+    if len(match) != 1:
+        return False
+    allowed_keys = {"extensions", "path_contains", "filename_contains"}
+    return set(match[0].keys()) <= allowed_keys
+
+
 def remove_search(config: dict, index: int) -> None:
     del config["searches"][index]
 

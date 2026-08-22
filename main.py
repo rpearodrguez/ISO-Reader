@@ -65,12 +65,23 @@ def main() -> None:
         def on_source_missing(source_dir: Path) -> None:
             console.print(f"[red]Source dir not found: {source_dir}[/red]")
 
+        def on_file_error(internal_path: str, message: str) -> None:
+            console.print(f"[red]  Error extracting {internal_path}: {message}[/red]")
+
+        def on_container_finished(name: str, counts: dict) -> None:
+            console.print(
+                f"  {name}: {counts['matched']} matched, {counts['extracted']} extracted, "
+                f"{counts['skipped']} skipped, {counts['errors']} errors"
+            )
+
         stats = run_batch(
             config,
             on_container_start=on_container_start,
             on_file_progress=on_file_progress,
             on_container_error=on_container_error,
             on_source_missing=on_source_missing,
+            on_file_error=on_file_error,
+            on_container_finished=on_container_finished,
         )
 
     print_summary(stats)
