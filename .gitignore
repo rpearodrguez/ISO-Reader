@@ -1,0 +1,24 @@
+# Personal data — not meant to be shared
+Discos/
+tools/
+
+# Extraction output/logs
+extraction.csv
+*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Editor/OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json

@@ -1,0 +1,30 @@
+global:
+  source_dir: "/media/isos"
+  output_dir: "/output"
+  output_mode: by_iso        # flat | by_iso | by_type | by_search
+  log_file: "extraction.csv"
+
+searches:
+  - name: "Audio completo"
+    output_subdir: "audio"
+    match:
+      - extensions: [.mp3, .mp2, .wma, .wav]
+
+  - name: "Carpeta RADIO de cualquier disco"
+    output_subdir: "radio"
+    match:
+      - path_contains: "RADIO"
+
+  - name: "Todo de un disco especifico usando otro como referencia de estructura"
+    output_subdir: "web"
+    match:
+      - path_contains: "WEB"
+        extensions: [.html, .htm, .css, .js]
+
+  - name: "Imagenes promocionales"
+    output_subdir: "images"
+    match:
+      - extensions: [.jpg, .jpeg, .png, .bmp, .gif]
+        path_contains: "IMG"
+      - extensions: [.jpg, .jpeg, .png]
+        path_contains: "PROMO"

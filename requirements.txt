@@ -1,0 +1,11 @@
+pycdlib>=1.14,<2
+libarchive-c>=5.1,<6
+rich>=13,<14
+PyYAML>=6,<7
+
+# gui_main.py only
+PySide6>=6.5,<7
+
+# tools/download_cds.py only
+requests>=2,<3
+# optional, only needed for Mega.nz links: pip install mega.py
