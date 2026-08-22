@@ -21,7 +21,12 @@ shared library installed and discoverable at runtime for `.mdf`/`.bin`/`.rar`/`.
 
 ## Configure
 
-Edit `config.yaml`:
+Copy `config.example.yaml` to `config.yaml` and edit it — `config.yaml` is gitignored since
+it ends up holding your real disc/output paths:
+
+```
+cp config.example.yaml config.yaml
+```
 
 ```yaml
 global:

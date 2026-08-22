@@ -2,6 +2,9 @@
 Discos/
 tools/
 
+# Local config with real source/output paths — copy config.example.yaml instead
+config.yaml
+
 # Extraction output/logs
 extraction.csv
 *.csv
